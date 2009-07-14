@@ -38,6 +38,7 @@ class GGClient(Protocol):
         self.__external_port = 0
         self.__image_size = 255
         self.seed = None
+        self.__contact_buffer = "" # bufor na importowane z serwera kontakty
 
     def sendPacket(self, msg):
         header = GGHeader()
@@ -104,6 +105,22 @@ class GGClient(Protocol):
         #lista
         elif header.type == GGIncomingPackets.GGUserListReply:
             print 'packet: GGUserListReply'
+            in_packet = GGUserListReply()
+            in_packet.read(data, header.length)
+            if in_packet.reqtype == GGUserListReplyTypes.GetMoreReply:
+                self.__contact_buffer += in_packet.request
+            if in_packet.reqtype == GGUserListReplyTypes.GetReply:
+                self.__importing = False # zaimportowano cala liste
+                self.__contact_buffer += in_packet.request #... bo lista moze przyjsc w kilku pakietach
+                self.__make_contacts_list(self.__contact_buffer)
+                self.__contact_buffer = "" # oprozniamy bufor
+                d = defer.Deferred()
+                d.callback(self)
+                d.addCallback(self._conn.on_userlist_reply, self.__contacts_list)
+            else:
+                d = defer.Deferred()
+                d.callback(self)
+                d.addCallback(self._conn.on_userlist_exported_or_deleted, in_packet.reqtype, in_packet.request)
             d = defer.Deferred()
             d.callback(self)
             d.addCallback(self._conn.on_userlist_reply)
@@ -120,6 +137,33 @@ class GGClient(Protocol):
             d = defer.Deferred()
             d.callback(self)
             d.addCallback(self._conn.on_msg_ack, in_packet.status, in_packet.recipient, in_packet.seq)
+        #statusy
+        elif header.type == GGIncomingPackets.GGStatus:
+            in_packet = GGStatus()
+            in_packet.read(data, header.length)
+            uin = in_packet.uin
+            self.__contacts_list[uin].status = in_packet.status
+            self.__contacts_list[uin].description = in_packet.description
+            self.__contacts_list[uin].return_time = in_packet.return_time
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_status, self.__contacts_list[uin])
+        elif header.type == GGIncomingPackets.GGStatus60:
+            in_packet = GGStatus60()
+            in_packet.read(data, header.length)
+            uin = in_packet.uin
+            if self.__contacts_list[uin] == None:
+                self.__contacts_list.add_contact(Contact({"uin":in_packet.uin}))
+            self.__contacts_list[uin].status = in_packet.status
+            self.__contacts_list[uin].description = in_packet.description
+            self.__contacts_list[uin].return_time = in_packet.return_time
+            self.__contacts_list[uin].ip = in_packet.ip
+            self.__contacts_list[uin].port = in_packet.port
+            self.__contacts_list[uin].version = in_packet.version
+            self.__contacts_list[uin].image_size = in_packet.image_size
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_status60, self.__contacts_list[uin])
         else:
             print 'packet: unknown: type %s, length %s' % (header.type, header.length)
 
@@ -164,7 +208,7 @@ class GGClient(Protocol):
                     self.__contacts_list = ContactsList()
             for contact in contacts:
                     #TODO: needs to be fixed: groups
-                    if contact != '' and contact != "\n" and contact.find("GG70ExportString,;") != True and contact != "GG70ExportString,;Others,;\r":
+                    if contact != '' and contact != "\n" and contact.find("GG70ExportString,;") != True and contact != "GG70ExportString,;\r":
                             newcontact = Contact({'request_string':contact})
                             self.add_contact(newcontact)
         

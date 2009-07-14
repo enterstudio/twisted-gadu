@@ -7,7 +7,8 @@ class GaduTest(object):
     def __init__(self):
         # tworzymy instancje klasy. Cos trzeba tlumaczyc? ;)
         # UWAGA! Ponizsza zmienna jest wymagana!
-        self.contacts_list = ContactsList([Contact({'uin':3993939,'shown_name':'Tralala'}), Contact({'uin':4668758,'shown_name':'Anna'}), Contact({'uin':5120225,'shown_name':'kkszysiu'})])
+        #self.contacts_list = ContactsList([Contact({'uin':3993939,'shown_name':'Tralala'}), Contact({'uin':4668758,'shown_name':'Anna'}), Contact({'uin':5120225,'shown_name':'kkszysiu'})])
+        self.contacts_list = None
 
     def on_auth_got_seed(self, conn, seed):
         # te zdarzenie jest wykonywane jesli uda nam sie pobrac seed potrzebny do zalogowania
@@ -20,6 +21,7 @@ class GaduTest(object):
         #ten event informuje nas ze zostalismy poprawnie zalgoowani. Nie jest to jeszcze koniec
         # bowiem aby moc wysylac komendy i miec info o uzytkownikach musimy jeszcze odpytac serwer o info o kontaktach z listy
         print 'zalogowano!'
+        conn.import_contacts_list()
 
     def on_login_failed(self, conn):
         # ten event wystepuje jesli logowanie sie nie powiedzie. zazwyczaj oznacza to bledny seed lub nieprawidlowa nazwe uzytkonika i/lub haslo
@@ -44,6 +46,7 @@ class GaduTest(object):
 #            print 'Nie udalo sie pobrac numeru GG tego kontaktu'
 #        #I uwuwamy kontakt
 #        conn.remove_contact(13643147)
+        print contacts[5120225].description
 
     def on_msg_recv(self, conn, sender, seq, time, msg_class, message):
         print "Odebrano wiadomosc:\nSender: %s\nSeq: %s\n Time: %s\n Class: %s\n Msg: %s\n" % (sender, seq, time, msg_class, message)
@@ -52,6 +55,18 @@ class GaduTest(object):
     def on_msg_ack(self, conn, status, recipient, seq):
         print "Odebrano powierdzenie wyslania wiadomosci:\n   Status: %s\n   Recipient: %s\n   Seq: %s\n" % (status, recipient, seq)
 
+    def on_status(self, conn, contact):
+        print "Kontakt %s zmienil status na %s, opis: %s" % (contact.uin, contact.status, contact.description)
+
+    def on_status60(self, conn, contact):
+        print "Kontakt %s zmienil status na %s, opis: %s" % (contact.uin, contact.status, contact.description)
+
+    def on_userlist_reply(self, contacts):
+        print 'lista kontaktow zaimportowana'
+
+    def on_userlist_exported_or_deleted(self, reqtype, request):
+        print 'lista kontaktow, reqtype - %s, request - %s' % (reqtype, request)
+
 def main():
     t = GaduTest()
     factory = GGClientFactory(t)
@@ -59,7 +74,6 @@ def main():
     #factory.sendMessage()
     #factory.Login(4634020, 'xxxxxx', GGStatuses.Avail, 'test')
     reactor.run()
-        
 
 if __name__ == '__main__':
     main()
