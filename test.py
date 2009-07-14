@@ -8,7 +8,7 @@ class GaduTest(object):
         # tworzymy instancje klasy. Cos trzeba tlumaczyc? ;)
         # UWAGA! Ponizsza zmienna jest wymagana!
         #self.contacts_list = ContactsList([Contact({'uin':3993939,'shown_name':'Tralala'}), Contact({'uin':4668758,'shown_name':'Anna'}), Contact({'uin':5120225,'shown_name':'kkszysiu'})])
-        self.contacts_list = None
+        self.contacts_list = ContactsList()
 
     def on_auth_got_seed(self, conn, seed):
         # te zdarzenie jest wykonywane jesli uda nam sie pobrac seed potrzebny do zalogowania
@@ -46,7 +46,6 @@ class GaduTest(object):
 #            print 'Nie udalo sie pobrac numeru GG tego kontaktu'
 #        #I uwuwamy kontakt
 #        conn.remove_contact(13643147)
-        print contacts[5120225].description
 
     def on_msg_recv(self, conn, sender, seq, time, msg_class, message):
         print "Odebrano wiadomosc:\nSender: %s\nSeq: %s\n Time: %s\n Class: %s\n Msg: %s\n" % (sender, seq, time, msg_class, message)
@@ -61,10 +60,11 @@ class GaduTest(object):
     def on_status60(self, conn, contact):
         print "Kontakt %s zmienil status na %s, opis: %s" % (contact.uin, contact.status, contact.description)
 
-    def on_userlist_reply(self, contacts):
+    def on_userlist_reply(self, conn, contacts):
         print 'lista kontaktow zaimportowana'
+        print contacts[5120225].description
 
-    def on_userlist_exported_or_deleted(self, reqtype, request):
+    def on_userlist_exported_or_deleted(self, conn, reqtype, request):
         print 'lista kontaktow, reqtype - %s, request - %s' % (reqtype, request)
 
 def main():

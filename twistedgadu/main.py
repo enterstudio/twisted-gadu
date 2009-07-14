@@ -51,9 +51,6 @@ class GGClient(Protocol):
         Protocol.connectionMade(self)
         self._conn = self.factory._conn
         self.__contacts_list = self.factory._conn.contacts_list
-        #self.sendPacket("Hello, world!")
-        #self.sendPacket("What a fine day it is.")
-        #self.sendPacket(self.end)
 
     def dataReceived(self, data):
         print 'received data: ', data
@@ -121,9 +118,6 @@ class GGClient(Protocol):
                 d = defer.Deferred()
                 d.callback(self)
                 d.addCallback(self._conn.on_userlist_exported_or_deleted, in_packet.reqtype, in_packet.request)
-            d = defer.Deferred()
-            d.callback(self)
-            d.addCallback(self._conn.on_userlist_reply)
         #wiadomosci
         elif header.type == GGIncomingPackets.GGRecvMsg:
             in_packet = GGRecvMsg()
@@ -208,7 +202,7 @@ class GGClient(Protocol):
                     self.__contacts_list = ContactsList()
             for contact in contacts:
                     #TODO: needs to be fixed: groups
-                    if contact != '' and contact != "\n" and contact.find("GG70ExportString,;") != True and contact != "GG70ExportString,;\r":
+                    if contact != '' and contact != "\n" and (haystack.find("GG70ExportString,;") >= 0) != True and contact != "GG70ExportString,;\r":
                             newcontact = Contact({'request_string':contact})
                             self.add_contact(newcontact)
         
