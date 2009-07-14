@@ -71,8 +71,10 @@ class GGRecvMsg(GGIncomingPacket):
 	def __init__(self):
 		pass
 	
-	def read(self, connection, size):
-		structure = struct.unpack("<IIII%ds" % (size - 16), connection.read(size))
+	def read(self, data, size):
+                data = data[8:]
+                data = data[:size]
+		structure = struct.unpack("<IIII%ds" % (size - 16), data)
 		self.sender = structure[0]
 		self.seq = structure[1]
 		self.time = structure[2]
@@ -91,8 +93,10 @@ class GGSendMsgAck(GGIncomingPacket):
 	def __init__(self):
 		pass
 	
-	def read(self, connection, size):
-		structure = struct.unpack("<III", connection.read(size))
+	def read(self, data, size):
+                data = data[8:]
+                data = data[:size]
+		structure = struct.unpack("<III", data)
 		self.status = structure[0]
 		self.recipient = structure[1]
 		self.seq = structure[2]
@@ -115,7 +119,7 @@ class GGNotifyReplyOld(GGIncomingPacket):
 		assert type(contacts) == ContactsList
 		self.__contacts = contacts
 	
-	def read(self, connection, size):
+	def read(self, data, size):
 		raise NotImplemented
 
 	def __get_contacts(self):
@@ -233,8 +237,10 @@ class GGPubDir50Reply(GGIncomingPacket):
 	def __init__(self):
 		pass
 	
-	def read(self, connection, size):
-		structure = struct.unpack("<BI%ds" % (size - 5), connection.read(size))
+	def read(self, data, size):
+                data = data[8:]
+                data = data[:size]
+		structure = struct.unpack("<BI%ds" % (size - 5), data)
 		self.reqtype = structure[0]
 		self.seq = structure[1]
 		self.reply = structure[2]
@@ -259,12 +265,16 @@ class GGUserListReply(GGIncomingPacket):
 	def __init__(self):
 		pass
 	
-	def read(self, connection, size):
+	def read(self, data, size):
 		if size == 1:
-			self.reqtype = struct.unpack("<B", connection.read(size))[0]
+                        data = data[8:]
+                        data = data[:size]
+			self.reqtype = struct.unpack("<B", data)[0]
 			self.request = ""
 		else:
-			structure = struct.unpack("<B%ds" % (size - 1), connection.read(size))
+                        data = data[8:]
+                        data = data[:size]
+			structure = struct.unpack("<B%ds" % (size - 1), data)
 			self.reqtype = structure[0]
 			self.request = structure[1]
 	
@@ -275,15 +285,18 @@ class GGStatus(GGIncomingPacket):
 	def __init__(self):
 		pass
 
-	def read(self, connection, size):
+	def read(self, data, size):
+                data = data[8:]
 		self.return_time = 0
 		if size == 8:
-			structure = struct.unpack("<II", connection.read(size))
+                        data = data[:size]
+			structure = struct.unpack("<II", data)
 			self.uin = structure[0] & 0x00ffffff # TODO: to moze byc niepotrzebne
 			self.status = structure[1]
 			self.description = ""
 		else:
-			structure = struct.unpack("<II%ds" % (size - 8), connection.read(size))
+                        data = data[:size]
+			structure = struct.unpack("<II%ds" % (size - 8), data)
 			self.uin = structure[0] & 0x00ffffff
 			self.status = structure[1]
 			self.description = structure[2]
@@ -301,9 +314,11 @@ class GGStatus60(GGIncomingPacket):
 	def __init__(self):
 		pass
 
-	def read(self, connection, size):
+	def read(self, data, size):
+                data = data[8:]
 		if size == 14:
-			structure = struct.unpack("<IBIHBBx", connection.read(size))
+                        data = data[:size]
+			structure = struct.unpack("<IBIHBBx", data)
 			self.uin = structure[0] & 0x00ffffff
 			self.status = structure[1]
 			self.ip = structure[2]
@@ -313,7 +328,8 @@ class GGStatus60(GGIncomingPacket):
 			self.description = ""
 			self.return_time = 0
 		else:
-			structure = struct.unpack("<IBIHBBx%ds" % (size - 14), connection.read(size))
+                        data = data[:size]
+			structure = struct.unpack("<IBIHBBx%ds" % (size - 14), data)
 			self.uin = structure[0] & 0x00ffffff
 			self.status = structure[1]
 			self.ip = structure[2]
@@ -328,4 +344,3 @@ class GGStatus60(GGIncomingPacket):
 				tuple = struct.unpack("<%dsxI" % (len(self.description) - 5), self.description)
 				self.description = tuple[0]
 				self.return_time = tuple[1]
-

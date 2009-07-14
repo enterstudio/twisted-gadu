@@ -37,9 +37,8 @@ class GGOutgoingPacket(object):
 	"""
 	"Abstrakcyjna" klasa pakietow wysylanych do serwera
 	"""
-	def send(self):
+	def get(self):
 		pass
-
 
 class GGLogin(GGOutgoingPacket):
 	"""
@@ -154,11 +153,9 @@ class GGSendMsg(GGOutgoingPacket):
 		self.msg_class = msg_class
 		self.msg = msg
 		
-	def send(self, connection):
-		assert type(connection) == Connection
-		
+	def get(self):
 		data = struct.pack("<III%ds" % (len(self.msg) + 1), self.rcpt, self.seq, self.msg_class, self.msg)
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGSendMsg, len(data))) + data)
+		return (repr(GGHeader(GGOutgoingPackets.GGSendMsg, len(data))) + data)
 		
 class GGPing(GGOutgoingPacket):
 	"""
@@ -237,10 +234,9 @@ class GGAddNotify(GGOutgoingPacket):
 		self.uin = uin
 		self.user_type = user_type
 	
-	def send(self, connection):
-		assert type(connection) == Connection
+	def get(self):
 		data = struct.pack("<IB", self.uin, self.user_type & 0xff)
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGAddNotify, len(data))) + data)
+		return (repr(GGHeader(GGOutgoingPackets.GGAddNotify, len(data))) + data)
 
 class GGRemoveNotify(GGOutgoingPacket):
 	"""
@@ -252,13 +248,10 @@ class GGRemoveNotify(GGOutgoingPacket):
 		self.uin = uin
 		self.user_type = user_type
 	
-	def send(self, connection):
-		assert type(connection) == Connection
+	def get(self):
 		data = struct.pack("<IB", self.uin, self.user_type & 0xff)
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGRemoveNotify, len(data))) + data)
+		return (repr(GGHeader(GGOutgoingPackets.GGRemoveNotify, len(data))) + data)
 	
-
-
 class GGPubDir50Request(GGOutgoingPacket):
 	"""
 	Pakiet sluzacy do odpytywania katalogu publicznego
@@ -273,11 +266,9 @@ class GGPubDir50Request(GGOutgoingPacket):
 		self.reqtype = reqtype
 		self.seq = int(time.time())
 		
-	def send(self, connection):
-		assert type(connection) == Connection
-		
+	def get(self):
 		data = struct.pack("<BI%ds" % (len(self.request) + 1), self.reqtype, self.seq, self.request)
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGPubDir50Request, len(data))) + data)
+		return (repr(GGHeader(GGOutgoingPackets.GGPubDir50Request, len(data))) + data)
 		
 class GGUserListRequest(GGOutgoingPacket):
 	"""
@@ -291,8 +282,6 @@ class GGUserListRequest(GGOutgoingPacket):
 		self.reqtype = reqtype
 		self.request = request
 		
-	def send(self, connection):
-		assert type(connection) == Connection
-		
+	def get(self):
 		data = struct.pack("<B%ds" % (len(self.request) + 1), self.reqtype, self.request)
-		connection.send(repr(GGHeader(GGOutgoingPackets.GGUserlistRequest, len(data))) + data)
+		return (repr(GGHeader(GGOutgoingPackets.GGUserlistRequest, len(data))) + data)

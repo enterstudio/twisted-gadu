@@ -59,7 +59,7 @@ class GGClient(Protocol):
         header = GGHeader()
 	header.read(data)
         print 'header.type: ', header.type
-#        self.factory.clientReady(self)
+        #logowanie
 	if header.type == GGIncomingPackets.GGWelcome:
             print 'packet: GGWelcome'
             in_packet = GGWelcome()
@@ -101,11 +101,25 @@ class GGClient(Protocol):
             d = defer.Deferred()
             d.callback(self)
             d.addCallback(self._conn.on_notify_reply, self.__contacts_list)
+        #lista
         elif header.type == GGIncomingPackets.GGUserListReply:
             print 'packet: GGUserListReply'
             d = defer.Deferred()
-            d.callback(None)
-            d.addCallback(self.on_userlist_reply)
+            d.callback(self)
+            d.addCallback(self._conn.on_userlist_reply)
+        #wiadomosci
+        elif header.type == GGIncomingPackets.GGRecvMsg:
+            in_packet = GGRecvMsg()
+            in_packet.read(data, header.length)
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_msg_recv, in_packet.sender, in_packet.seq, in_packet.time, in_packet.msg_class, in_packet.message)
+        elif header.type == GGIncomingPackets.GGSendMsgAck:
+            in_packet = GGSendMsgAck()
+            in_packet.read(data, header.length)
+            d = defer.Deferred()
+            d.callback(self)
+            d.addCallback(self._conn.on_msg_ack, in_packet.status, in_packet.recipient, in_packet.seq)
         else:
             print 'packet: unknown: type %s, length %s' % (header.type, header.length)
 
@@ -143,6 +157,16 @@ class GGClient(Protocol):
         self.sendPacket(out_packet.get())
         print "[PING]"
         reactor.callLater(96, self._ping)
+
+    def __make_contacts_list(self, request):
+            contacts = request.split("\n")
+            if self.__contacts_list == None:
+                    self.__contacts_list = ContactsList()
+            for contact in contacts:
+                    #TODO: needs to be fixed: groups
+                    if contact != '' and contact != "\n" and contact.find("GG70ExportString,;") != True and contact != "GG70ExportString,;Others,;\r":
+                            newcontact = Contact({'request_string':contact})
+                            self.add_contact(newcontact)
         
     """Methods that can be used by user"""
     def login(self, seed, uin, password, status, desc):
@@ -165,6 +189,123 @@ class GGClient(Protocol):
             self.sendPacket(out_packet.get())
             self.status = status
             self.desc = description
+
+    def add_contact(self, contact, user_type = 0x3, notify = True):
+            """
+            Dodajemy kontakt 'contact' do listy kontaktow. Jesli jestesmy polaczeni z serwerem i notify == True to dodatkowo
+            powiadamiamy o tym fakcie serwer. Od tego momentu serwer bedzie nas informowal o statusie tego kontaktu.
+            """
+            assert type(contact) == Contact
+            self.__contacts_list.add_contact(contact)
+            out_packet = GGAddNotify(contact.uin, user_type)
+            self.sendPacket(out_packet.get())
+
+    def remove_contact(self, uin, notify = True):
+            """
+            Usuwamy z listy kontaktow kontakt o numerze 'uin'. Jesli jestesmy polaczeni z serwerem i notify == True to dodatkowo
+            powiadamiamy o tym fakcie serwer. Od tego momentu serwer nie bedzie nas juz informowal o statusie tego kontaktu.
+            """
+            self.__contacts_list.remove_contact(uin)
+            out_packet = GGRemoveNotify(uin)
+            self.sendPacket(out_packet.get())
+
+    def change_user_type(self, uin, user_type):
+            """
+            Zmieniamy typ uzytkownika. user_type jest mapa wartosci z GGUserTypes.
+            Np. zeby zablokowac uzytkownka piszemy:
+                    change_user_type(12454354, GGUserTypes.Blocked)
+            """
+            out_packet = GGRemoveNotify(uin, user_type)
+            self.sendPacket(out_packet.get())
+
+    def change_description(self, description):
+            """
+            Metoda powoduje zmiane opisu. Jako parametr przyjmuje nowy opis.
+            """
+            assert type(description) == types.StringType and len(description) <= 70
+
+            if self.status != GGStatuses.AvailDescr and self.status != GGStatuses.BusyDescr and self.status != GGStatuses.InvisibleDescr:
+                    raise GGException("Can't change description - current status has'n description") 
+
+            self.change_status(self.status, description)
+
+    def send_msg(self, rcpt, msg, seq = 0, msg_class = GGMsgTypes.Msg, richtext = False):
+            """
+            Metoda sluzy do wysylania wiadomosci w siecie gadu-gadu. Parametry:
+             * rcpt - numer gadu-gadu odbiorcy wiadomosci
+             * msg - wiadomosc do dostarczenia
+             * seq - numer sekwencyjny wiadomosci, sluzy do potwierdzen dostarczenia wiadomosci. Domyslnie wartosc 0
+             * msg_class - klasa wiadomosci (typ GGMsgTypes). Domyslnie wiadomosc pojawia sie w nowym oknie
+             * richtext - okresla czy wiadomosc bedzie interpretowana jako zwykly tekst czy jako tekst formatowany.
+               Domyslnie nieformatowany
+            """
+            assert type(rcpt) == types.IntType
+            assert type(msg) == types.StringType and ((not richtext and len(msg) < 2000) or (richtext))  #TODO: w dalszych iteracjach: obsluga richtextmsg
+            assert type(seq) == types.IntType
+            assert msg_class in GGMsgTypes
+
+            if richtext:
+                    message = Helpers.pygglib_rtf_to_gg_rtf(msg)
+            else:
+                    message = msg
+
+            out_packet = GGSendMsg(rcpt, message, seq, msg_class)
+            self.sendPacket(out_packet.get())
+
+    def pubdir_request(self, request, reqtype = GGPubDirTypes.Search):
+            """
+            Metoda obslugujaca katalog publiczny. Wysyla zapytanie do serwera. Parametry:
+             * request - zapytanie dla serwera
+             * reqtype - typ zapytania
+            """
+            assert type(request) == types.StringType or type(request) == types.DictType
+            assert reqtype in GGPubDirTypes
+
+            out_packet = GGPubDir50Request(request, reqtype)
+            self.sendPacket(out_packet.get())
+
+    def export_contacts_list(self, filename = None):
+            """
+            Eksportuje liste kontaktow do serwera lub do pliku, w przypadku podania nazwy jako parametr filename
+            """
+            if self.__contacts_list != None:
+                    if filename == None:
+                            sub_lists = Helpers.split_list(self.__contacts_list.export_request_string(), 2038)
+                            out_packet = GGUserListRequest(GGUserListTypes.Put, sub_lists[0])
+                            self.sendPacket(out_packet.get())
+                            if len(sub_lists) > 1:
+                                    for l in sub_lists[1:len(sub_lists)]:
+                                            out_packet = GGUserListRequest(GGUserListTypes.PutMore, l)
+                                            self.sendPacket(out_packet.get())
+                    else:
+                            assert type(filename) == types.StringType
+                            request = self.__contacts_list.export_request_string()
+                            file = open(filename, "w")
+                            file.write(request)
+                            file.close()
+
+    def delete_contacts_from_server(self):
+            """
+            Usuwa liste kontaktow z serwera Gadu-Gadu
+            """
+            out_packet = GGUserListRequest(GGUserListTypes.Put, "")
+            self.sendPacket(out_packet.get())
+
+    def import_contacts_list(self, filename = None):
+            """
+            Wysyla zadanie importu listy z serwera lub pliku, gdy podamy jego nazwe w parametrze filename.
+            Zaimportowana lista zapisywana jest w self.__contacts_list
+            """
+
+            if filename == None:
+                    out_packet = GGUserListRequest(GGUserListTypes.Get, "")
+                    self.sendPacket(out_packet.get())
+            else:
+                    assert type(filename) == types.StringType
+                    file = open(filename, "r")
+                    request = file.read()
+                    file.close()
+                    self.__make_contacts_list(request)
 
     def get_actual_status(self):
         return self.status
