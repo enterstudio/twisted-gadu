@@ -202,7 +202,7 @@ class GGClient(Protocol):
                     self.__contacts_list = ContactsList()
             for contact in contacts:
                     #TODO: needs to be fixed: groups
-                    if contact != '' and contact != "\n" and (haystack.find("GG70ExportString,;") >= 0) != True and contact != "GG70ExportString,;\r":
+                    if contact != '' and contact != "\n" and (contact.find("GG70ExportString,;") >= 0) != True and contact != "GG70ExportString,;\r":
                             newcontact = Contact({'request_string':contact})
                             self.add_contact(newcontact)
         
